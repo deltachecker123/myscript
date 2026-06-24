@@ -4966,6 +4966,77 @@ end
 -- // ============================================================ \\ --
 library:Initialize()
 local Window = library:New({ name = "Grow a Garden 2", accent = Color3.fromRGB(145,160,255), sizeX = 860, sizeY = 620, keybind = Enum.KeyCode.RightShift })
+
+local toggleIcon = utility.create("ImageButton", {
+    Size = UDim2.new(0, 44, 0, 44),
+    Position = UDim2.new(0, 10, 0.5, -22),
+    BackgroundTransparency = 1,
+    Image = "rbxasset://textures/ui/GuiImagePlaceholder.png",
+    ImageColor3 = library.accent,
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    BorderSizePixel = 0,
+    Parent = gui
+})
+
+local toggleIconDragging, toggleIconStart, toggleIconPos
+toggleIcon.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        toggleIconDragging = true
+        toggleIconStart = input.Position
+        toggleIconPos = toggleIcon.Position
+    end
+end)
+toggleIcon.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        toggleIconDragging = false
+    end
+end)
+services.InputService.InputChanged:Connect(function(input)
+    if not toggleIconDragging then return end
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        local delta = input.Position - toggleIconStart
+        toggleIcon.Position = UDim2.new(
+            toggleIconPos.X.Scale, toggleIconPos.X.Offset + delta.X,
+            toggleIconPos.Y.Scale, toggleIconPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+local toggleIconGlow = utility.create("Frame", {
+    Size = UDim2.new(1, 4, 1, 4),
+    Position = UDim2.new(0, -2, 0, -2),
+    BorderSizePixel = 0,
+    BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+    Parent = toggleIcon
+})
+utility.create("UIGradient", {
+    Rotation = 45,
+    Color = utility.gradient(library.outline),
+    Parent = toggleIconGlow
+})
+utility.create("Frame", {
+    ZIndex = 0,
+    Size = UDim2.new(1, 0, 1, 0),
+    Position = UDim2.new(0, 2, 0, 2),
+    BorderSizePixel = 0,
+    BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+    Parent = toggleIconGlow
+})
+local toggleLabel = utility.create("TextLabel", {
+    ZIndex = 2,
+    Size = UDim2.new(1, 0, 1, 0),
+    BackgroundTransparency = 1,
+    Text = "G",
+    TextColor3 = Color3.fromRGB(255, 255, 255),
+    TextSize = 20,
+    Font = Enum.Font.GothamBold,
+    Parent = toggleIcon
+})
+
+toggleIcon.MouseButton1Click:Connect(function()
+    Window:Toggle()
+end)
+
 local Farm = Window:Page({ name = "Farm" })
 local Boosts = Window:Page({ name = "Boosts" })
 local Pets = Window:Page({ name = "Pets" })
