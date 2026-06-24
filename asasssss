@@ -264,6 +264,7 @@ do
     local outlineobjs = {}
 
     function library:ChangeOutline(colors)
+        library.outline = colors
         for _, obj in next, outlineobjs do
             obj.Color = utility.gradient(colors)
         end
@@ -343,7 +344,10 @@ do
         for flag, v in next, config do
             local func = flags[flag]
             if func then
-                func(v)
+                local ok, err = pcall(func, v)
+                if not ok then
+                    warn("[LOADCONFIG] Flag " .. flag .. " failed: " .. tostring(err))
+                end
             end
         end
     end
@@ -569,9 +573,12 @@ do
         -- Actually trigger the auto-load on startup (original code only pre-filled UI, never loaded)
         if autoloadData and autoloadData.enabled == true and (autoloadData.config or "") ~= "" then
             task.defer(function()
-                task.wait(0.5)  -- let all flag registrations finish first
-                pcall(library.LoadConfig, library, autoloadData.config)
+                task.wait(0.5)
+                local ok, err = pcall(library.LoadConfig, library, autoloadData.config)
+                warn("[AUTOLOAD] Loaded " .. autoloadData.config .. " ok=" .. tostring(ok) .. " err=" .. tostring(err))
             end)
+        else
+            warn("[AUTOLOAD] Skipped: enabled=" .. tostring(autoloadData and autoloadData.enabled) .. " config=" .. tostring(autoloadData and autoloadData.config))
         end
     end
 
@@ -592,6 +599,14 @@ do
             Position = utility.getcenter(sizeX, sizeY),
             Parent = gui
         })
+
+        pcall(function()
+            local viewport = workspace.CurrentCamera.ViewportSize
+            local scale = math.min(1, math.min(viewport.X / (sizeX + 100), viewport.Y / (sizeY + 60)))
+            if scale < 1 then
+                utility.create("UIScale", { Scale = scale, Parent = holder })
+            end
+        end)
 
         local toggling = false
 
@@ -873,6 +888,9 @@ do
                             descendant.TextTransparency      = descendant.TextTransparency + 1
                             descendant.TextStrokeTransparency = descendant.TextStrokeTransparency + 1
                         end
+                        if descendant.ClassName:find("Image") then
+                            descendant.ImageTransparency = descendant.ImageTransparency + 1
+                        end
                         if descendant.ClassName:find("Scrolling") then
                             descendant.ScrollBarImageTransparency = descendant.ScrollBarImageTransparency + 1
                         end
@@ -960,8 +978,6 @@ do
 
                     tab.Visible = true
                     if tab.BackgroundTransparency > 1 then
-                        task.wait(0.2)
-
                         local tween = utility.makevisible(tab, true)
                         tween.Completed:Wait()
                     end
@@ -999,7 +1015,7 @@ do
 
                 local title = utility.create("TextLabel", {
                     ZIndex = 8,
-                    Size = UDim2.new(0, 0, 0, 14),
+                    Size = UDim2.new(0, 0, 0, 14), -- fix
                     BorderColor3 = Color3.fromRGB(50, 50, 50),
                     BackgroundTransparency = 1,
                     Position = UDim2.new(0, 6, 0, 3),
@@ -1317,7 +1333,9 @@ do
                         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                         FontSize = Enum.FontSize.Size14,
                         TextSize = 14,
-                        TextColor3 = Color3.fromRGB(0, 0, 0),
+                        Text = "",
+                        TextTransparency = 1,
+                        TextColor3 = Color3.fromRGB(210, 210, 210),
                         Font = Enum.Font.SourceSans,
                         Parent = sectioncontent
                     })
@@ -1676,7 +1694,9 @@ do
                             BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                             FontSize = Enum.FontSize.Size14,
                             TextSize = 14,
-                            TextColor3 = Color3.fromRGB(0, 0, 0),
+                            Text = "",
+                            TextTransparency = 1,
+                            TextColor3 = Color3.fromRGB(210, 210, 210),
                             Font = Enum.Font.SourceSans,
                             Parent = colorpickerframe
                         })
@@ -1756,7 +1776,9 @@ do
                             BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                             FontSize = Enum.FontSize.Size14,
                             TextSize = 14,
-                            TextColor3 = Color3.fromRGB(0, 0, 0),
+                            Text = "",
+                            TextTransparency = 1,
+                            TextColor3 = Color3.fromRGB(210, 210, 210),
                             Font = Enum.Font.SourceSans,
                             Parent = toggleholder
                         })
@@ -2823,24 +2845,26 @@ do
                                 callback(nil)
                             end
                         else
+                            if type(chosen) == "string" then chosen = {} end
+                            if type(choseninstances) == "string" then choseninstances = {} end
                             table.clear(chosen)
                             table.clear(choseninstances)
 
                             if not opt then
                                 local tween = utility.tween(dropdown, { 0.2 }, { TextTransparency = 1, TextStrokeTransparency = 1 }, function()
-                                    dropdown.Text = table.concat(chosen, ", ") ~= "" and table.concat(chosen, ", ") or "NONE"
+                                    dropdown.Text = "NONE"
                                 end)
 
                                 tween.Completed:Wait()
 
-                                utility.tween(dropdown, { 0.2 }, { TextTransparency = 0, TextStrokeTransparency = 0, TextColor3 = table.concat(chosen, ", ") ~= "" and Color3.fromRGB(210, 210, 210) or Color3.fromRGB(150, 150, 150) })
+                                utility.tween(dropdown, { 0.2 }, { TextTransparency = 0, TextStrokeTransparency = 0, TextColor3 = Color3.fromRGB(150, 150, 150) })
 
                                 if flag then
                                     library.flags[flag] = chosen
                                 end
 
                                 callback(chosen)
-                            else
+                            elseif type(opt) == "table" then
                                 for _, opti in next, opt do
                                     if optioninstances[opti] then
                                         if #chosen >= maxoptions then
@@ -3120,7 +3144,9 @@ do
                         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                         FontSize = Enum.FontSize.Size14,
                         TextSize = 14,
-                        TextColor3 = Color3.fromRGB(0, 0, 0),
+                        Text = "",
+                        TextTransparency = 1,
+                        TextColor3 = Color3.fromRGB(210, 210, 210),
                         Font = Enum.Font.SourceSans,
                         Parent = sectioncontent
                     })
@@ -4294,8 +4320,12 @@ do
     local mod = sm and sm:FindFirstChild("Networking")
     if mod then local ok, m = pcall(require, mod); if ok then Net = m end end
 end
+if game.PlaceId ~= 97598239454123 then
+    warn("[INFLXZO] Wrong game — Grow a Garden 2 only")
+    return
+end
 if not Net then
-    warn("[WalkyHub] Networking module not found — wrong game?")
+    warn("[INFLXZO] Networking module not found — wrong game?")
     return
 end
 
@@ -4648,6 +4678,8 @@ local S = {
     buyAllWildPets = false,
     eventSeeds = false,
     autoEventSeeds = false,
+    antiFling = false,
+    autoFling = false,
 }
 local Stats = { bought = 0, planted = 0, harvested = 0, sold = 0, earned = 0,
     sprinklers = 0, watered = 0, tamed = 0, opened = 0, stolen = 0, codes = 0, startAt = os.clock() }
@@ -4671,10 +4703,12 @@ local function loopOn(getOn, period, body)
 end
 local function picked(t) for _ in pairs(t) do return true end return false end
 local function pickMulti(sel, into)
+    if type(sel) ~= "table" then warn("[pickMulti] sel not table: " .. type(sel) .. " = " .. tostring(sel)); return end
+    if type(into) ~= "table" then warn("[pickMulti] into not table: " .. type(into) .. " = " .. tostring(into)); return end
     for k in pairs(into) do into[k] = nil end
-    if type(sel) == "table" then for k, v in pairs(sel) do
+    for k, v in pairs(sel) do
         if v == true then into[k] = true elseif type(v) == "string" then into[v] = true end
-    end end
+    end
 end
 
 -- // ============================================================ \\ --
@@ -4932,7 +4966,6 @@ end
 -- // ============================================================ \\ --
 library:Initialize()
 local Window = library:New({ name = "Grow a Garden 2", accent = Color3.fromRGB(145,160,255), sizeX = 860, sizeY = 620, keybind = Enum.KeyCode.RightShift })
-
 local Farm = Window:Page({ name = "Farm" })
 local Boosts = Window:Page({ name = "Boosts" })
 local Pets = Window:Page({ name = "Pets" })
@@ -5039,6 +5072,36 @@ secHop:Slider({ name = "Hop every (min, 0=disabled)", minimum = 0, maximum = 120
 local secMail = Misc:Section({ name = "Mail & Gifts" })
 secMail:Toggle({ name = "Auto-Claim mailbox", default = false, pointer = "ptr_autoMail", callback = function(v) S.autoMail = v end })
 secMail:Toggle({ name = "Auto-Accept gifts", default = false, pointer = "ptr_autoAcceptGift", callback = function(v) S.autoAcceptGift = v end })
+local friendReqSent = {}
+secMail:Toggle({ name = "Auto Friend Request All", default = false, pointer = "ptr_autoFriendReq", callback = function(v)
+    S.autoFriendReq = v
+    if v then
+        task.spawn(function()
+            while S.autoFriendReq do
+                local n = 0
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer and not friendReqSent[p] then
+                        local ok = pcall(function() p:RequestFriendship(p) end)
+                        if ok then friendReqSent[p] = true; n += 1 end
+                    end
+                end
+                if n > 0 then warn("[AFR] Sent " .. n) end
+                task.wait(10)
+            end
+        end)
+    end
+end })
+Players.PlayerAdded:Connect(function(p)
+    if S.autoFriendReq and p ~= LocalPlayer and not friendReqSent[p] then
+        task.wait(3)
+        local ok = pcall(function() p:RequestFriendship(p) end)
+        if ok then friendReqSent[p] = true; warn("[AFR] Sent to new: " .. p.Name) end
+    end
+end)
+
+local secCombat = Misc:Section({ name = "Combat" })
+secCombat:Toggle({ name = "Anti-Fling (prevent being flung)", default = false, pointer = "ptr_antiFling", callback = function(v) S.antiFling = v end })
+secCombat:Toggle({ name = "Auto-Fling nearby players", default = false, pointer = "ptr_autoFling", callback = function(v) S.autoFling = v end })
 
 local secThemes = Settings:Section({ name = "Themes" })
 
@@ -5071,6 +5134,7 @@ local secThemesAccent = secThemes:ColorPicker({
 local secThemesOutline1 = secThemes:ColorPicker({
     name = "Outline Color 1",
     default = library.outline[1],
+    pointer = "ptr_themeOutline1",
     callback = function(c)
         library:ChangeOutline({ c, library.outline[2] })
     end
@@ -5079,6 +5143,7 @@ local secThemesOutline1 = secThemes:ColorPicker({
 local secThemesOutline2 = secThemes:ColorPicker({
     name = "Outline Color 2",
     default = library.outline[2],
+    pointer = "ptr_themeOutline2",
     callback = function(c)
         library:ChangeOutline({ library.outline[1], c })
     end
@@ -5087,6 +5152,7 @@ local secThemesOutline2 = secThemes:ColorPicker({
 local secThemesText = secThemes:ColorPicker({
     name = "Text Color",
     default = Color3.fromRGB(210, 210, 210),
+    pointer = "ptr_themeText",
     callback = function(c)
         library:ChangeText(c)
     end
@@ -5095,6 +5161,7 @@ local secThemesText = secThemes:ColorPicker({
 local secThemesBg = secThemes:ColorPicker({
     name = "Background Color",
     default = Color3.fromRGB(25, 25, 25),
+    pointer = "ptr_themeBg",
     callback = function(c)
         library:ChangeBackground(c)
     end
@@ -5104,6 +5171,7 @@ secThemes:Dropdown({
     name = "Theme Presets",
     options = {"Default","Midnight","Forest","Sunset","Ocean","Crimson","Gold"},
     default = "Default",
+    pointer = "ptr_themePreset",
     callback = function(name)
         local p = THEME_PRESETS[name]
         if p then
@@ -5285,7 +5353,7 @@ local function destroyPlotPlants(plot)
 end
 
 local function nukeWC()
-    local gardens = workspace:FindFirstChild("Gardens")
+    local gardens = Workspace:FindFirstChild("Gardens")
     if not gardens then return end
     for _, plot in ipairs(gardens:GetChildren()) do
         local ownerId = plot:GetAttribute("OwnerUserId")
@@ -5295,13 +5363,20 @@ local function nukeWC()
     end
 end
 
+local function stopWatchersWC()
+    for _, c in ipairs(watchersWC) do c:Disconnect() end
+    table.clear(watchersWC)
+end
+
 local function startWatchersWC()
     stopWatchersWC()
-    local gardens = workspace:FindFirstChild("Gardens")
+    local gardens = Workspace:FindFirstChild("Gardens")
     if not gardens then return end
     local function hook(c)
         if not c then return end
-        local conn = c.ChildAdded:Connect(function() task.wait(); nukeWC() end)
+        local conn = c.ChildAdded:Connect(function(child)
+            task.wait(); nukeWC()
+        end)
         table.insert(watchersWC, conn)
     end
     for _, plot in ipairs(gardens:GetChildren()) do
@@ -5314,15 +5389,34 @@ local function startWatchersWC()
     table.insert(watchersWC, conn)
 end
 
-local function stopWatchersWC()
-    for _, c in ipairs(watchersWC) do c:Disconnect() end
-    table.clear(watchersWC)
-end
-
+local wcLoop
 secSettings:Toggle({ name = "Delete Others' Plants", default = false, pointer = "ptr_wcDeleteOthers", callback = function(v)
     S.wcDeleteOthers = v
-    if v then nukeWC(); startWatchersWC()
-    else stopWatchersWC() end
+    if v then
+        pcall(nukeWC)
+        startWatchersWC()
+        wcLoop = task.spawn(function()
+            while S.wcDeleteOthers do task.wait(5); pcall(nukeWC) end
+        end)
+    else
+        stopWatchersWC()
+        if wcLoop then task.cancel(wcLoop); wcLoop = nil end
+    end
+end })
+
+secSettings:Toggle({ name = "CPU Saver", default = false, pointer = "ptr_cpuSaver", callback = function(v)
+    S.cpuSaver = v
+    local UIS2 = game:GetService("UserInputService")
+    local RS2 = game:GetService("RunService")
+    if v then
+        RS2:Set3dRenderingEnabled(false)
+        S._cpuSaverCon1 = UIS2.WindowFocusReleased:Connect(function() RS2:Set3dRenderingEnabled(false) end)
+        S._cpuSaverCon2 = UIS2.WindowFocused:Connect(function() RS2:Set3dRenderingEnabled(true) end)
+    else
+        if S._cpuSaverCon1 then S._cpuSaverCon1:Disconnect(); S._cpuSaverCon1 = nil end
+        if S._cpuSaverCon2 then S._cpuSaverCon2:Disconnect(); S._cpuSaverCon2 = nil end
+        RS2:Set3dRenderingEnabled(true)
+    end
 end })
 
 secSettingss:Toggle({ name = "Webhook Enabled", default = false, pointer = "ptr_webhookEnabled", callback = function(v) S.webhookEnabled = v end })
@@ -5397,6 +5491,8 @@ task.spawn(function()
                     
                     while S.autoBuyPets and w.part and w.part.Parent and os.clock() - t0 < 60 do
                         
+                        flingNearbyDuringTask()
+
                         local currentOwnerId = w.part:GetAttribute("OwnerUserId") or 0
                         if currentOwnerId ~= 0 then
                             break
@@ -5510,6 +5606,7 @@ loopOn(function() return S.autoSteal end, 1.5, function()
             local hrp = hrpNow(); if hrp then pcall(function() hrp.CFrame = CFrame.new(f.pos + Vector3.new(0, 4, 0)) end); task.wait(0.4) end
         end
         fire("Steal.BeginSteal", f.owner, f.plantId, f.fruitId)
+        flingNearbyDuringTask()
         fire("Steal.CompleteSteal")
         Stats.stolen += 1
         if S.stealReturnBase then
@@ -5558,6 +5655,26 @@ if VirtualUser then
         pcall(function() VirtualUser:CaptureController(); VirtualUser:ClickButton2(Vector2.new(0, 0)) end)
     end)
 end
+-- Enhanced anti-AFK: periodic subtle movement to bypass game's anti-cheat
+task.spawn(function()
+    while not S.killed do
+        if S.antiAfk then
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+            if hrp and hum then
+                local savedPos = hrp.Position
+                local offset = Vector3.new(math.random(-30, 30)/10, 0, math.random(-30, 30))/10
+                hrp.CFrame = CFrame.new(savedPos + offset)
+                task.wait(0.3)
+                hrp.CFrame = CFrame.new(savedPos)
+                hum.Jump = true
+                task.wait(0.1)
+                hum.Jump = false
+            end
+        end
+        task.wait(math.random(25, 45))
+    end
+end)
 local CODE_LIST = {}
 local triedCodes = {}
 local function redeemCodes(list)
@@ -5578,42 +5695,34 @@ loopOn(function() return S.autoCodes end, 120, function() redeemCodes(CODE_LIST)
 -- //                     EVENT SEED AUTO-PICKUP                   \\ --
 -- // ============================================================ \\ --
 
-loopOn(function() return S.autoEventSeeds end, 1.5, function()
+local LAST_COLLECT_TIME = 0
+loopOn(function() return S.autoEventSeeds end, 0.6, function()
     local map = Workspace:FindFirstChild("Map")
     if not map then return end
-    
+
     local function getSeedPackName(obj)
         if not obj or not obj.Parent then return nil end
-        if obj:GetAttribute("RainbowSeed") == true then return "Rainbow" end
-        if obj:GetAttribute("GoldSeed") == true then return "Gold" end
-        return obj:GetAttribute("SeedPack")
+        local rainbow = obj:GetAttribute("RainbowSeed")
+        if rainbow == true or rainbow == "true" then return "Rainbow" end
+        local gold = obj:GetAttribute("GoldSeed")
+        if gold == true or gold == "true" then return "Gold" end
+        local spAttr = obj:GetAttribute("SeedPack")
+        if spAttr and spAttr ~= "" then return spAttr end
+        return nil
     end
 
-    local function teleportTo(pos)
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        pcall(function()
-            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-            hrp.Velocity = Vector3.new(0, 0, 0)
-        end)
-    end
-
-    local seen = {}
-
+    local seeded = {}
     local serverLocs = map:FindFirstChild("SeedPackSpawnServerLocations")
     if serverLocs then
         for _, obj in ipairs(serverLocs:GetChildren()) do
             if not S.autoEventSeeds then return end
+            if not obj.Parent then continue end
             local name = getSeedPackName(obj)
-            if name and not seen[obj] then
-                seen[obj] = true
-                teleportTo(obj.Position)
-                task.wait(0.2)
-                local ok, _ = pcall(function() return fire("SeedPack.ClickPack", name) end)
-                if not ok then
-                    local ok2, _ = pcall(function() return fireFast("SeedPackSpawn.Claimed", LocalPlayer.Name, name) end)
-                end
-                task.wait(0.15)
+            if not name then name = obj.Name end
+            local pos
+            pcall(function() pos = obj:IsA("BasePart") and obj.Position or (obj:GetPivot().Position) end)
+            if pos then
+                table.insert(seeded, {obj = obj, name = name, pos = pos})
             end
         end
     end
@@ -5622,30 +5731,113 @@ loopOn(function() return S.autoEventSeeds end, 1.5, function()
     if clientLocs then
         for _, obj in ipairs(clientLocs:GetChildren()) do
             if not S.autoEventSeeds then return end
-            if seen[obj] then continue end
-            seen[obj] = true
+            if not obj.Parent then continue end
+            local name = getSeedPackName(obj) or obj.Name
             local base = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart", true)
-            if not base then continue end
-            teleportTo(base.Position)
-            task.wait(0.2)
-            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-            if prompt then
-                fireproximityprompt(prompt)
-                task.wait(0.25)
-            end
-            local touch = obj:FindFirstChildWhichIsA("TouchTransmitter", true)
-            if touch and firetouchinterest then
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    firetouchinterest(hrp, base, 0)
-                    task.wait(0.05)
-                    firetouchinterest(hrp, base, 1)
-                    task.wait(0.2)
-                end
+            if base and base.Parent then
+                table.insert(seeded, {obj = obj, name = name, pos = base.Position})
             end
         end
     end
+
+    if #seeded == 0 then return end
+
+    local savedCF
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    for _, t in ipairs(seeded) do
+        if not S.autoEventSeeds then return end
+        if not t.obj.Parent then continue end
+        
+        flingNearbyDuringTask()
+
+        if not hrp or not hrp.Parent then
+            hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not hrp then break end
+        end
+
+        if not savedCF then savedCF = hrp.CFrame end
+
+        pcall(function()
+            hrp.CFrame = CFrame.new(t.pos + Vector3.new(0, 3, 0))
+            hrp.Velocity = Vector3.new(0, 0, 0)
+        end)
+        task.wait(0.1)
+
+        -- Try ClickPack + Claimed with the derived name
+        pcall(function() fire("SeedPack.ClickPack", t.name) end)
+        pcall(function() fireFast("SeedPackSpawn.Claimed", LocalPlayer.Name, t.name) end)
+        task.wait(0.05)
+
+        -- Also fire proximity prompt as backup (for server-side proximity checks)
+        local base = t.obj:IsA("BasePart") and t.obj or t.obj:FindFirstChildWhichIsA("BasePart", true)
+        if base then
+            local prompt = t.obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if prompt then fireproximityprompt(prompt) end
+            local touch = t.obj:FindFirstChildWhichIsA("TouchTransmitter", true)
+            if touch and firetouchinterest and hrp then
+                firetouchinterest(hrp, base, 0)
+                task.wait(0.05)
+                firetouchinterest(hrp, base, 1)
+            end
+        end
+        task.wait(0.1)
+    end
+
+    if savedCF and hrp and hrp.Parent then
+        pcall(function() hrp.CFrame = savedCF end)
+    end
 end)
+
+-- // ============================================================ \\ --
+-- //                    ANTI-FLING                               \\ --
+-- // ============================================================ \\ --
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if not S.antiFling then continue end
+        local char = LocalPlayer.Character
+        if not char then continue end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        pcall(function()
+            hrp.Velocity = Vector3.new(0, 0, 0)
+            hrp.RotVelocity = Vector3.new(0, 0, 0)
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        end)
+    end
+end)
+
+-- // ============================================================ \\ --
+-- //                    AUTO-FLING                               \\ --
+-- // ============================================================ \\ --
+local function flingNearby()
+    if not S.autoFling then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local myPos = hrp.Position
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p == LocalPlayer then continue end
+        local pChar = p.Character
+        if not pChar then continue end
+        local pHrp = pChar:FindFirstChild("HumanoidRootPart")
+        if not pHrp then continue end
+        if (pHrp.Position - myPos).Magnitude > 30 then continue end
+        pcall(function()
+            pHrp.CFrame = CFrame.new(pHrp.Position + Vector3.new(0, 50, 0))
+            pHrp.Velocity = Vector3.new(0, 200, 0)
+        end)
+    end
+end
+
+local function flingNearbyDuringTask()
+    if S.autoFling then
+        flingNearby()
+    end
+end
 
 -- // ============================================================ \\ --
 -- //                    WEBHOOK REPORTING                        \\ --
@@ -5670,7 +5862,7 @@ local function sendWebhook(isTest)
             { name = "✨ Extras",   value = string.format("sprinklers %d · watered %d · tamed %d · opened %d · stolen %d",
                 Stats.sprinklers, Stats.watered, Stats.tamed, Stats.opened, Stats.stolen), inline = false },
             { name = "⏱️ Uptime",   value = hms(os.clock() - Stats.startAt), inline = true },
-        }, footer = { text = "WalkyHub · GAG2" },
+        }, footer = { text = "INFLXZO · GAG2" },
     } } }
     local ok, res = pcall(function()
         return httpRequest({ Url = S.webhookUrl, Method = "POST",
